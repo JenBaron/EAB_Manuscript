@@ -1,0 +1,916 @@
+---
+title: "Model Revision"
+author: "Jen Baron"
+date: 'May 22, 2020'
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    toc_float: true
+    keep_md: true
+---
+
+This is the same code as the original analysis, but I'm now modelling the raw amount of buckthorn (instead of the relative abundance)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE}
+library(plyr)
+library(tidyverse)
+library(nlme)
+library(lme4)
+library(glmmTMB)
+library(RColorBrewer)
+library(ggrepel)
+library(gridExtra)
+library(DHARMa)
+library(emmeans)
+library(dplyr)
+```
+
+
+# Create Scores
+
+## Read in & Join EI Data
+```{r}
+gap.area <- read.csv("data/gap_area.csv") %>% select(-X, -Gap)
+names(gap.area)[4] <-"Gap Area"
+str(gap.area)
+
+dist.edge <- read.csv("data/dist_edge.csv")
+names(dist.edge)[4]<-"Edge Distance"
+str(dist.edge)
+
+frag.size <-read.csv("data/frag_size.csv")
+names(frag.size)[2] <- "Fragment Size"
+str(frag.size)
+
+shade.tol <- read.csv("data/shade_tol.csv") %>% select(-X, -Gap, -tot.BA)
+names(shade.tol)[4] <- "Shade Tolerance"
+str(shade.tol)
+
+tree <- read.csv("data/percent_t.csv") %>% select(-X) #wondering if this should be absolute or relative...
+names(tree)[4] <- "Percent Tree" #absolute right now (not relative to shrub cover)
+str(tree)
+
+mgmt <- read.csv("data/management.csv")
+str(mgmt)
+```
+
+```{r}
+EI <- full_join(dist.edge, gap.area, by = c("Location", "Category", "ID"))
+EI2 <- full_join(EI, frag.size, by = c("Location"))
+EI3 <- full_join(EI2, shade.tol, by = c("Location", "Category", "ID"))
+EI4 <- full_join(EI3, tree, by = c("Location", "Category", "ID"))
+EI5 <- full_join(EI4, mgmt, by = c("Location"))
+EI5$Category <- as.factor(EI5$Category)
+names(EI5) <- sub(" ", ".", names(EI5)) #Replace spaces with .
+str(EI5)
+```
+
+## Create Matrix for EI Analysis
+
+Variables:
+
+- Edge Distance - plot specific: lower number = lower integrity
+- Fragment Size - site specific: lower number = lower integrity
+- Shade Tolerance - site specific: lower number = lower integrity?
+- Percent Tree - plot specific: lower number = lower integrity?
+- Management - site specific: lower number = lower integrity?
+
+
+```{r}
+shade.tol.site <- EI5 %>% #summarize shade tolerance by site
+  filter(Category == "Non-Gap") %>%
+  group_by(Location) %>%
+  summarize(Shade.Tolerance.Site = mean(Shade.Tolerance)) 
+
+str(shade.tol.site)
+
+EI6 <- full_join(EI5, shade.tol.site, by = c("Location")) %>% select(-Shade.Tolerance)
+
+gap.area.site <- EI5 %>% #summarize gap area
+  filter(Category != "Non-Gap") %>%
+  group_by(Location) %>% 
+  summarize(Gap.Area.Site = mean(Gap.Area)) 
+
+EI7 <- full_join(EI6, gap.area.site, by = c("Location")) %>% select(-Gap.Area)
+
+head(EI7)
+```
+
+```{r}
+#write.csv(EI7, file = "EI.csv")
+```
+
+## Run without and without gap area
+```{r}
+EI7 %>% select(Edge.Distance, Fragment.Size, Percent.Tree, Shade.Tolerance.Site) -> EI.data
+
+prcomp(EI.data, scale. = TRUE) -> EI.pca
+
+summary(EI.pca)
+
+biplot(EI.pca)
+
+PC1 <- predict(EI.pca)[,1]
+PC2 <- predict(EI.pca)[,2]
+
+EI7 %>% select(Edge.Distance, Fragment.Size, Percent.Tree, Shade.Tolerance.Site, Gap.Area.Site) %>% 
+  prcomp(scale. = TRUE) -> EI.pca2
+
+summary(EI.pca2)
+
+biplot(EI.pca2)
+
+PC1b <- predict(EI.pca2)[,1]
+PC2b <- predict(EI.pca2)[,2]
+```
+
+
+```{r}
+rescale.U <- rep(EI.pca$sdev, each = length(EI.pca$sdev)) #get lengths
+
+U.scale2 <- EI.pca$rotation * rescale.U #multiply lengths by sqrt SD
+
+round(U.scale2^2,2) #variability in each variable for each PC
+```
+
+
+### QQ plots for PCA
+```{r}
+qqnorm(EI.data[,1]);qqline(EI.data[,1])
+qqnorm(EI.data[,2]);qqline(EI.data[,2])
+qqnorm(EI.data[,3]);qqline(EI.data[,3])
+qqnorm(EI.data[,4]);qqline(EI.data[,4])
+```
+
+
+
+
+### PCA BiPlot
+
+```{r}
+#display.brewer.all(colorblindFriendly = TRUE)
+mypalette <-brewer.pal(11,"BrBG")[c(1,3,7,5,9,11)]
+#mypalette <- c("","","lightseagreen", "lightskyblue2", "dodgerblue",  "dodgerblue4")
+image(1:9,1,as.matrix(1:9),col=mypalette,ylab="",xaxt="n",yaxt="n",bty="n")
+```
+
+```{r}
+U <- data.frame(EI.pca$rotation)
+colnames(U) <- colnames(EI.pca$rotation)
+rownames(U) <- rownames(EI.pca$rotation)
+U$descriptors <- rownames(U)
+F.1 <- data.frame(EI.pca$x) # The book calls this matrix F but I use F.1 because in R, F is shorthand for FALSE
+colnames(F.1) <- colnames(EI.pca$x)
+rownames(F.1) <- rownames(EI.pca$x)
+str(U)
+levels(U$descriptors) <- c("Distance from Forest Edge", "Forest Fragment Size", "Tree Regeneration", "Successional Stage")
+U$descriptors <- as.factor(U$descriptors)
+str(U)
+F.1$Location<- EI7$Location 
+F.1$Category <- EI7$Category 
+
+
+F.1$Location = factor(F.1$Location, levels=c("Field Research Station", "Code Farm", "Westminster Ponds", "Five Points Forest", "Medway Valley", "Meadowlily Woods"))
+F.1$Category = factor(F.1$Category, levels=c("EAB Gap", "Other Gap", "Non-Gap"))
+
+#Change Names
+F.1$Location <- revalue(F.1$Location, c("Field Research Station"="Private 1"))
+F.1$Location <- revalue(F.1$Location, c("Code Farm"="Private 2"))
+F.1$Location <- revalue(F.1$Location, c("Westminster Ponds"="Public 1"))
+F.1$Location <- revalue(F.1$Location, c("Five Points Forest"="Private 3"))
+F.1$Location <- revalue(F.1$Location, c("Medway Valley"="Public 2"))
+F.1$Location <- revalue(F.1$Location, c("Meadowlily Woods"="Public 3"))
+levels((F.1$Location))
+
+```
+
+Plot the objects
+```{r}
+levels(U$descriptors) <- c("Distance from Edge", "Fragment Size", "Tree Regeneration", 
+                           "Successional Stage")
+
+
+biplot1 <- ggplot(F.1, aes(x = PC1, y =PC2)) + 
+  geom_point(aes(shape = Category, fill = Location),col = "black", size = 2, pch=21, alpha = 0.9) +
+  theme_classic() +
+  coord_fixed() +
+  labs(x = 'Principle Component 1', y = "Principle Component 2") +
+  scale_fill_manual(values = mypalette) +
+  geom_segment(data = U, aes(xend = PC1*3, yend = PC2*3,x = 0, y = 0), col = "black", alpha = 0.7, arrow = arrow(length = unit(0.35, "cm"))) +
+  geom_label_repel(data = U, aes(x = PC1*3, y = PC2*3, label = descriptors),
+                   col = "black", nudge_y = -0.35, 
+                   segment.colour = NA, size = 3, alpha = 0.7) +
+  theme(legend.position="bottom", legend.box = "horizontal", plot.margin=grid::unit(c(0,0,0,0), "mm"))
+biplot1
+
+
+#ggsave('fig.biplotBrBu.jpeg',biplot1, units = 'cm', width = 14, height =12)
+```
+
+
+
+# Modelling
+
+## Read in Shrub Data
+```{r}
+shrubs.f <- read.csv("data/shrubs_final.csv") %>% select(-"X")
+shrubs.EI <- full_join(shrubs.f, EI7, by = c("Location", "Category", "ID")) 
+shrubs.EI$Category <- as.factor(shrubs.EI$Category)
+names(shrubs.EI) <- sub(" ", ".", names(shrubs.EI)) #Replace spaces with .
+str(shrubs.EI)
+```
+
+
+### Add values from PCA
+
+
+```{r}
+shrubs.EI$PC1 <- PC1
+shrubs.EI$PC2 <- PC2
+```
+
+### Standardize EI
+
+```{r}
+hist(shrubs.EI$PC1)
+shrubs.EI %>% summarize(mean = mean(PC1) %>% round(1), sd = sd(PC1) %>% round(1)) #mean already was 0 (centered)
+shrubs.EI$PC1.s <- scale(shrubs.EI$PC1, center = TRUE, scale = TRUE)  #standardize
+shrubs.EI %>% summarize(mean = mean(PC1.s) %>% round(1), sd = sd(PC1.s)) 
+head(shrubs.EI)
+```
+
+
+### Compare Private & Public
+
+```{r}
+
+lm.mgmt <- lm(data = shrubs.EI, PC1 ~ Management)
+summary(lm.mgmt)
+anova(lm.mgmt)
+confint(lm.mgmt)
+
+ggplot(shrubs.EI, aes(x = Management, y = PC1)) +
+  geom_boxplot() +
+    geom_jitter(alpha=0.6, aes(col = Location)) +
+  theme_classic()
+```
+
+
+
+### Summarize EI
+
+```{r}
+EI.location <- shrubs.EI %>% group_by(Location) %>%
+  summarize(EI = mean(PC1) %>% round(2))
+arrange(EI.location, EI)
+
+EI.cat <- shrubs.EI %>% group_by(Category) %>%
+  summarize(EI = mean(PC1) %>% round(2))
+arrange(EI.cat, EI)
+```
+
+### Check distribution
+```{r}
+hist(shrubs.f$Buckthorn) #left skewed
+(sum(shrubs.EI$Buckthorn > 0) / nrow(shrubs.EI))*100 # 56% zeros
+```
+
+
+
+```{r}
+#shrubs.EI$Category <- relevel(shrubs.EI$Category, ref = "Non-Gap") #re-level to set non-gap as reference condition - removed
+```
+
+Is it more interesting to consider EAB gaps or non-gaps as the reference category? Decided on EAB gaps
+
+
+## Apply a Poission Generalized MM  & check for overdispersion
+```{r}
+shrubs.B1 <- glmer(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), family = poisson, data = shrubs.EI)
+
+E1 <- resid(shrubs.B1, type = "pearson")
+N <- nrow(shrubs.EI)
+p <- length(fixef(shrubs.B1)) + 1
+sum(E1^2) / (N - p)
+```
+
+Yea, that's way over 1 (super overdispersed)
+
+
+## Apply a negative binomial GLMM  & check for overdispersion
+```{r}
+shrubs.B2 <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), family = "nbinom2", data = shrubs.EI)
+
+E3 <- resid(shrubs.B2, type = "pearson")
+N <- nrow(shrubs.EI)
+p <- length(fixef(shrubs.B2)$cond) + 1 + 1
+sum(E3^2) / (N - p)
+```
+
+Now likely underdispersed, but better than before
+
+
+### Model Selection
+
+Select ecological integrity (PC1 / PC2) with and without gap area
+
+```{r}
+#PC1 without gap area
+shrubsfit.Ba <- glmmTMB(Buckthorn ~ Category * PC1 + (1 | Location), family = "nbinom2", data = shrubs.EI)
+#PC1 with gap area
+shrubsfit.Bb <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), family = "nbinom2", data = shrubs.EI)
+#PC2 without gap area
+shrubsfit.Bc <- glmmTMB(Buckthorn ~ Category * PC2 + (1 | Location), family = "nbinom2", data = shrubs.EI)
+#PC2 with gap area
+shrubsfit.Bd <- glmmTMB(Buckthorn ~ Category * PC2 + Gap.Area.Site + (1 | Location), family = "nbinom2", data = shrubs.EI)
+#gap area in PCA
+shrubsfit.Be <- glmmTMB(Buckthorn ~ Category * PC1b + (1 | Location), family = "nbinom2", data = shrubs.EI)
+```
+
+```{r}
+AIC(shrubsfit.Ba, shrubsfit.Bb, shrubsfit.Bc, shrubsfit.Bd, shrubsfit.Be)
+```
+
+PC1 with gap area (shrubsfit.Bb) is best
+
+
+```{r}
+shrubsfit.Bb <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), family = "nbinom2", data = shrubs.EI)
+shrubsfit.Bb.no.inter <- glmmTMB(Buckthorn ~ Category + PC1 + Gap.Area.Site + (1 | Location), family = "nbinom2", data = shrubs.EI)
+shrubsfit.null <- glmmTMB(Buckthorn ~ 1 + (1 | Location), family = "nbinom2", data = shrubs.EI)
+anova(shrubsfit.Bb, shrubsfit.Bb.no.inter)
+AIC(shrubsfit.Bb, shrubsfit.Bb.no.inter, shrubsfit.null)
+```
+
+p-value for interaction is now 0.06 (still marginally significant)
+
+
+```{r}
+summary(shrubs.B2)
+```
+
+Effect of gap area now significant
+
+
+### Model Validation
+
+#### Residuals vs fitted values X
+
+There are two types of fitted values for a GLM - the "link" predictions are estimates of $\eta$ and the response predictions are estimates of $\mu$.
+
+```{r}
+shrubs.EI$res <- residuals(shrubsfit.Bb, type = "pearson")
+shrubs.EI$fit <- predict(shrubsfit.Bb, type = "response")
+
+ggplot(shrubs.EI,aes(x = fit, y = res)) + 
+  geom_point() + geom_smooth()
+
+ggplot(shrubs.EI, aes(x = PC1, y = res)) + 
+  geom_point() + geom_smooth()
+```
+
+#### DHARMa Plots
+
+```{r}
+simulationOutput1 <- simulateResiduals(fittedModel = shrubsfit.Bb, n = 1000)
+plotSimulatedResiduals(simulationOutput = simulationOutput1)
+par(mfrow = c(1,3))
+```
+
+
+### Test Gap Size
+
+```{r}
+names(gap.area) <- sub(" ", ".", names(gap.area)) #Replace spaces with .
+gap.test <- lme(Gap.Area~Category,random=~1|Location,data=gap.area)
+anova(gap.test)
+summary(gap.test)
+gap.area %>% group_by(Category) %>% summarize(gap.area = mean(Gap.Area))
+intervals(gap.test,  which = "fixed")
+```
+
+```{r}
+ggplot(gap.area, aes(x = Category, y = Gap.Area)) +
+  geom_boxplot() +
+    geom_jitter(alpha=0.6, aes(col = Location)) +
+  theme_classic()
+```
+
+### Model Selection
+
+```{r}
+shrubs.0infl <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location) + Management, ziformula = ~., family = "nbinom2", data = shrubs.EI)
+
+shrubs.hurdle <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location) + Management, ziformula = ~., family = "truncated_nbinom2", data = shrubs.EI)
+
+#summary(shrubs.0infl)
+#summary(shrubs.hurdle)
+```
+
+
+**Step 1: Compare to Negative Binomial**
+
+```{r}
+AIC(shrubs.0infl, shrubs.hurdle, shrubs.B2) # Better than neg binomial 
+```
+
+Both the zero-inflated and zero-altered model are better than the original negative binomial model
+
+We're going to use zero-altered because it's safe to assume that if buckthorn was present, it was recorded
+
+**Step 2: Fixed Effects**
+
+```{r}
+str(shrubs.EI)
+shrubs.hurdle <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + Management + (1 | Location), 
+                        ziformula = ~ Category * PC1 + Gap.Area.Site + Management + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+```
+
+Drop Management
+
+```{r}
+#AIC
+427.70-428.10 #management
+429.85-427.70 #gap size
+```
+
+
+**Step 3: Simplify Zero-Inflation**
+
+```{r}
+shrubs.hurdle1a <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~  Category + PC1 + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+shrubs.hurdle1b <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~ Category * PC1  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+
+AIC(shrubs.hurdle, shrubs.hurdle1a, shrubs.hurdle1b)
+
+# 1a - drop interaction
+
+shrubs.hurdle2a <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~  PC1 + Category + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+shrubs.hurdle2b <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~  Category + Gap.Area.Site +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+shrubs.hurdle2c <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~  Category + PC1 + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+AIC(shrubs.hurdle1a, shrubs.hurdle2a, shrubs.hurdle2b, shrubs.hurdle2c)
+
+## 2c - drop gap area
+
+shrubs.hurdle3a <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~   PC1 +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+shrubs.hurdle3b <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~  Category  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+
+AIC(shrubs.hurdle2c, shrubs.hurdle3a, shrubs.hurdle3b)
+
+# 3b - drop PC1
+
+shrubs.hurdle4 <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~ 1 +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+AIC(shrubs.hurdle3b, shrubs.hurdle4)
+anova(shrubs.hurdle3b, shrubs.hurdle4)
+
+# Keep Category
+
+drop1(shrubs.hurdle3b)
+```
+
+```{r}
+#AIC Scores
+
+#Gap Category
+430.9292-426.0300
+
+#Ecological integrity
+427.5389-426.0300
+
+#Gap size
+428.8045-427.5389
+
+#EI*Category
+429.9393-428.8045
+
+```
+
+**Step 4: Simplify Negative-Binomial**
+
+```{r}
+shrubs.hurdle5 <- glmmTMB(Buckthorn ~ Category * PC1 + (1 | Location), 
+                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+shrubs.hurdle5b <-  glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
+                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+
+shrubs.hurdle6 <- glmmTMB(Buckthorn ~ Category + PC1 + (1 | Location), 
+                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+
+drop1(shrubs.hurdle5b)
+
+drop1(shrubs.hurdle5)
+
+AIC(shrubs.hurdle5, shrubs.hurdle6)
+```
+
+Gap area is marginal and can be dropped
+
+```{r}
+#AIC Scores
+
+#PC1*Category
+427.9651-423.2072
+
+#Gap area
+423.21-422.03
+```
+
+
+### Model Validatation (through simulation)
+
+```{r}
+
+sim.m5 <- simulate(shrubs.hurdle5, nsim = 999) %>% t() %>% as.data.frame() %>% 
+  gather(observation, sim_value)
+
+sim.m5$Location <- rep(shrubs.EI$Location, each = 999)
+sim.m5$obs.num <- as.numeric(str_extract(sim.m5$observation, "[:digit:]+"))
+
+
+str(sim.m5)
+
+
+ggplot() +
+  geom_boxplot(data = sim.m5, aes(x = reorder(observation, obs.num), 
+                                  y = sim_value + 1, 
+                                  col = Location), alpha = 0.5) +
+  scale_y_log10() +
+  geom_point(data = shrubs.EI, aes(x = 1:72, y = Buckthorn + 1), col = "black") +
+  theme_classic()
+
+```
+
+A lot of uncertainty but the real observations are usually in line the middle 50% of the simulations.  
+
+A bit more buckthorn than the model predicts at Westminster Ponds but I think that is consistent with previous knowledge.
+
+### Model validatation through simulation
+
+```{r}
+
+sim.m5 <- simulate(shrubs.hurdle5, nsim = 999) %>% t() %>% as.data.frame() %>% 
+  gather(observation, sim_value)
+
+sim.m5$Location <- rep(shrubs.EI$Location, each = 999)
+sim.m5$obs.num <- as.numeric(str_extract(sim.m5$observation, "[:digit:]+"))
+
+
+
+str(sim.m5)
+
+
+
+ggplot() +
+  geom_boxplot(data = sim.m5, aes(x = reorder(observation, obs.num), 
+                                  y = sim_value + 1, 
+                                  col = Location), alpha = 0.5) +
+  scale_y_log10() +
+  geom_point(data = shrubs.EI, aes(x = 1:72, y = Buckthorn + 1), col = "black") +
+  theme_classic()
+
+
+```
+
+
+### Plot Model Predictions
+
+
+```{r}
+non.min <- min(subset(shrubs.EI$PC1, shrubs.EI$Category == "Non-Gap"))
+non.max<- max(subset(shrubs.EI$PC1, shrubs.EI$Category == "Non-Gap"))
+EAB.min <- min(subset(shrubs.EI$PC1, shrubs.EI$Category == "EAB Gap"))
+EAB.max <- max(subset(shrubs.EI$PC1, shrubs.EI$Category == "EAB Gap"))
+other.min <- min(subset(shrubs.EI$PC1, shrubs.EI$Category == "Other Gap"))
+other.max <- max(subset(shrubs.EI$PC1, shrubs.EI$Category == "Other Gap"))
+
+
+pred <- data.frame(PC1 = c(seq(EAB.min, EAB.max, length.out = 100), 
+                               seq(other.min, other.max, length.out = 100), 
+                                   seq(non.min, non.max, length.out = 100)),
+                   Category = c(rep("EAB Gap", 100), rep("Other Gap", 100), rep("Non-Gap", 100)),
+                   Gap.Area.Site = rep(mean(shrubs.EI$Gap.Area.Site),300), # Added gap area
+                   Management = c(rep("Private", 150), rep("Public", 150)), 
+                   Location = rep(NA, 300)) # This NA gives general predictions instead of location specific predictions
+
+pred$fit <- predict(shrubs.hurdle5, newdata = pred, se.fit = TRUE, type = "link")$fit
+pred$se <- predict(shrubs.hurdle5, newdata = pred, se.fit = TRUE, type = "link")$se.fit
+str(pred)
+
+pred.upr <- pred$fit + 1.96 * pred$se
+pred.lwr <- pred$fit - 1.96 * pred$se
+
+pred$upr <- ifelse(exp(pred.upr) < 100, exp(pred.upr), 100)
+pred$lwr <- ifelse(exp(pred.lwr) > 0, exp(pred.lwr), 0)
+
+pred$mean <- exp(pred$fit)
+
+```
+
+
+```{r}
+mypalette2 = c(brewer.pal(12, "Paired")[c(12,2,4)])
+str(pred)
+```
+
+```{r}
+shrubs.EI$Category = factor(shrubs.EI$Category, levels=c("EAB Gap", "Other Gap", "Non-Gap"))
+pred$Category = factor(pred$Category, levels=c("EAB Gap", "Other Gap", "Non-Gap"))
+
+
+fig.EI <- ggplot(pred, aes(x = PC1, y = mean)) +
+    geom_ribbon(aes(x = PC1, ymin = lwr, ymax = upr, fill = Category), alpha = 0.15) +
+      geom_point(data = shrubs.EI, aes(x = PC1, y = Buckthorn, col = Category), alpha = 0.6) + 
+  geom_line(aes(col = Category), size = 1, alpha = 0.8) +
+  labs(x = "Ecological Integrity (index)",
+       y = "European buckthorn (% cover)",
+       col = "Category") +
+  scale_y_continuous(limits = c(0, 100)) +
+    scale_colour_manual(values = mypalette2) +
+  scale_fill_manual(values = mypalette2) +
+    theme_classic() +
+ theme(legend.position = "none")
+
+fig.EI
+
+#ggsave('fig.EI.jpeg',fig.EI , units = 'cm', width = 14, height = 10)
+
+```
+
+Check those high % buckthorn points - where are they coming from?
+
+```{r}
+ggplot(pred, aes(x = PC1, y = mean)) +
+  geom_ribbon(aes(x = PC1, ymin = lwr, ymax = upr, fill = Category), alpha = 0.15) +
+  geom_point(data = shrubs.EI, aes(x = PC1, y = Buckthorn, col = Category, shape = Location), alpha = 0.6) + 
+  geom_line(aes(col = Category), size = 1, alpha = 0.8) +
+  labs(x = "Ecological Integrity",
+       y = "Buckthorn (%)",
+       col = "Category") +
+  scale_colour_manual(values = mypalette2) +
+  scale_fill_manual(values = mypalette2) +
+  theme_classic() 
+# theme(legend.position = "none")
+
+shrubs.EI.w <- shrubs.EI %>% filter(Location == "Westminster Ponds")
+shrubs.EI.nw <- shrubs.EI %>% filter(Location != "Westminster Ponds")
+
+ggplot(pred, aes(x = PC1, y = mean)) +
+  geom_ribbon(aes(x = PC1, ymin = lwr, ymax = upr, fill = Category), alpha = 0.15) +
+  geom_point(data = shrubs.EI.nw, aes(x = PC1, y = Buckthorn, col = Category), alpha = 0.6) + 
+  geom_point(data = shrubs.EI.w, aes(x = PC1, y = Buckthorn, col = Category), alpha = 0.6, shape = 17) + 
+  geom_line(aes(col = Category), size = 1, alpha = 0.8) +
+  labs(x = "Ecological Integrity",
+       y = "Buckthorn (%)",
+       col = "Category") +
+  scale_colour_manual(values = mypalette2) +
+  scale_fill_manual(values = mypalette2) +
+  theme_classic() 
+# theme(legend.position = "none")
+
+```
+
+
+The 90% are all coming from Westminster Ponds
+
+## Model Summary
+
+```{r}
+summary(shrubs.hurdle5)
+
+exp(fixef(shrubs.hurdle5)$cond) # Intercept expected cover when present, others are multiplicative changes in cover conditional on presence
+
+
+exp(fixef(shrubs.hurdle5)$zi) # Intercept is odds of zero, others are odds ratios
+
+exp(confint(shrubs.hurdle5))
+
+```
+
+I think I've figured out how to correctly interpret the odds ratios and intercept scores
+
+```{r}
+#Intercept
+#Non-Gaps
+33.715419*0.1132062 %>% round(2)#lower
+33.715419*0.2325890 %>% round(2) #estimate
+33.715419*0.4778683 %>% round(2)#upper
+#Other-Gaps
+33.7154190*0.3387368 %>% round(2)#lower
+33.7154190*0.5355936 %>% round(2)#estimate
+33.7154190*0.8468538 %>% round(2)#upper
+
+#PC1
+#Non-Gaps
+0.7128030*0.6601346 %>% round(2)#lower
+0.7128030*1.2055000 %>% round(2)#estimate
+0.7128030*2.2014151 %>% round(2)#upper
+#Other-Gaps
+0.7128030*1.2296463 %>% round(2)#lower 
+0.7128030*1.7871821 %>% round(2)#estimate
+0.7128030*2.5975110 %>% round(2)#upper
+```
+
+### emtrends
+
+emtrends extracts the slopes which are expressed relative to EAB gaps - I then use exp to "unlink" the predictions.
+
+These values are really just PC1 * (Category:PC1)
+
+I think the levels in here get mixed up somehow because the other-gap and non-gap categories come out mixed up - I'm going to use the values from above but I know where they're coming from onw. 
+
+```{r}
+emtrends(shrubs.hurdle5, pairwise ~ Category, var = "PC1")
+
+exp(-0.339) %>% round(3)
+exp(-0.152) %>% round(3)
+exp(0.242) %>% round(3)
+```
+
+
+
+
+
+## Summary Statistics (for table)
+
+```{r}
+str(shrubs.EI)
+shrubs.summary <- shrubs.EI %>% select(Location, Category, ID, Buckthorn, Edge.Distance, Fragment.Size, Percent.Tree, Shade.Tolerance.Site, PC1) %>% 
+  group_by(Location, Category) %>% 
+  summarize(Buckthorn = mean(Buckthorn), Edge.Distance = mean(Edge.Distance), Fragment.Size = mean(Fragment.Size), 
+            Percent.Tree = mean(Percent.Tree), Shade.Tolerance.Site = mean(Shade.Tolerance.Site), PC1 = mean(PC1)) %>% 
+  mutate_if(is.numeric, round, digits = 1)
+shrubs.summary
+
+shrubs.summary$Location <- revalue(shrubs.summary$Location, c("Field Research Station"="Private 1"))
+shrubs.summary$Location <- revalue(shrubs.summary$Location, c("Code Farm"="Private 2"))
+shrubs.summary$Location <- revalue(shrubs.summary$Location, c("Westminster Ponds"="Public 1"))
+shrubs.summary$Location <- revalue(shrubs.summary$Location, c("Five Points Forest"="Private 3"))
+shrubs.summary$Location <- revalue(shrubs.summary$Location, c("Medway Valley"="Public 2"))
+shrubs.summary$Location <- revalue(shrubs.summary$Location, c("Meadowlily Woods"="Public 3"))
+
+#write.csv(shrubs.summary, file = "shrubs_summary.csv")
+
+```
+
+```{r}
+gap.area.summary <- EI5 %>% #summarize gap area
+  filter(Category != "Non-Gap") %>%
+  group_by(Location, Category) %>% 
+  summarize(Gap.Area.Site = mean(Gap.Area) %>% round(1)) 
+
+gap.area.summary$Location <- revalue(gap.area.summary$Location, c("Field Research Station"="Private 1"))
+gap.area.summary$Location <- revalue(gap.area.summary$Location, c("Code Farm"="Private 2"))
+gap.area.summary$Location <- revalue(gap.area.summary$Location, c("Westminster Ponds"="Public 1"))
+gap.area.summary$Location <- revalue(gap.area.summary$Location, c("Five Points Forest"="Private 3"))
+gap.area.summary$Location <- revalue(gap.area.summary$Location, c("Medway Valley"="Public 2"))
+gap.area.summary$Location <- revalue(gap.area.summary$Location, c("Meadowlily Woods"="Public 3"))
+
+#write.csv(gap.area.summary, file = "gaps_summary.csv")
+```
+
+
+
+## Run Model Without Western FRS
+
+As per reviewer comments - influence of this station
+
+Remove FRS from data
+```{r}
+shrubs.EI.wo <- shrubs.EI %>% filter(Location != "Field Research Station") %>% 
+  select(Location, Category, ID, Buckthorn, Management, Gap.Area.Site, PC1) 
+str(shrubs.EI.wo)
+```
+
+Run model without FRS data
+```{r}
+shrubs.hurdle5.wo <- glmmTMB(Buckthorn ~ Category * PC1 + (1 | Location), 
+                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI.wo)
+```
+
+### Compare Model Outputs
+```{r}
+exp(fixef(shrubs.hurdle5)$cond) # Intercept expected cover when present, others are multiplicative changes in cover conditional on presence
+exp(fixef(shrubs.hurdle5.wo)$cond)
+```
+
+Remove FRS: 
+
+- Even more buckthorn in average EI EAB gaps
+- Greater discrepancy between EAB gaps & non-gaps
+- Slope of PC1 in EAB gaps increases
+
+Therefore, greater EAB & EI effect when we remove FRS 
+
+
+```{r}
+#Non-gaps
+33.7154190 * 0.2325890
+49.2315112 * 0.1975805
+
+#Other gaps
+33.7154190 * 0.5355936
+49.2315112 *  0.3845417
+```
+
+```{r}
+exp(fixef(shrubs.hurdle5)$zi) # Intercept is odds of zero, others are odds ratios
+exp(fixef(shrubs.hurdle5.wo)$zi) # Intercept is odds of zero, others are odds ratios
+```
+
+Remove FRS:
+
+- Still equally likely to be present in EAB & other gaps
+- Odds of presense decrease from 1 to 0.76
+- Odds of presence in non-gaps also decrease (5.7 to 5.0 times less likely)
+
+
+```{r}
+exp(confint(shrubs.hurdle5))
+exp(confint(shrubs.hurdle5.wo))
+```
+
+Remove FRS:
+
+- In general, confidence intervals become wider (more uncertainty)
+
+### Visualize Model Predictions
+
+```{r}
+pred.wo <- data.frame(PC1 = c(seq(EAB.min, EAB.max, length.out = 100), 
+                               seq(other.min, other.max, length.out = 100), 
+                                   seq(non.min, non.max, length.out = 100)),
+                   Category = c(rep("EAB Gap", 100), rep("Other Gap", 100), rep("Non-Gap", 100)),
+                   Gap.Area.Site = rep(mean(shrubs.EI$Gap.Area.Site),300), # Added gap area
+                   Management = c(rep("Private", 150), rep("Public", 150)), 
+                   Location = rep(NA, 300)) # This NA gives general predictions instead of location specific predictions
+
+pred.wo$fit <- predict(shrubs.hurdle5.wo, newdata = pred, se.fit = TRUE, type = "link")$fit
+pred.wo$se <- predict(shrubs.hurdle5.wo, newdata = pred, se.fit = TRUE, type = "link")$se.fit
+str(pred.wo)
+
+pred.upr <- pred.wo$fit + 1.96 * pred$se
+pred.lwr <- pred.wo$fit - 1.96 * pred$se
+
+pred.wo$upr <- ifelse(exp(pred.upr) < 100, exp(pred.upr), 100)
+pred.wo$lwr <- ifelse(exp(pred.lwr) > 0, exp(pred.lwr), 0)
+
+pred.wo$mean <- exp(pred.wo$fit)
+```
+
+
+
+```{r}
+shrubs.EI.wo$Category = factor(shrubs.EI.wo$Category, levels=c("EAB Gap", "Other Gap", "Non-Gap"))
+pred.wo$Category = factor(pred.wo$Category, levels=c("EAB Gap", "Other Gap", "Non-Gap"))
+
+fig.EI.wo <- ggplot(pred.wo, aes(x = PC1, y = mean)) +
+    geom_ribbon(aes(x = PC1, ymin = lwr, ymax = upr, fill = Category), alpha = 0.15) +
+      geom_point(data = shrubs.EI.wo, aes(x = PC1, y = Buckthorn, col = Category), alpha = 0.6) + 
+  geom_line(aes(col = Category), size = 1, alpha = 0.8) +
+  labs(x = "Ecological Integrity",
+       y = "Buckthorn (%)",
+       col = "Category") +
+  scale_y_continuous(limits = c(0, 100)) +
+    scale_colour_manual(values = mypalette2) +
+  scale_fill_manual(values = mypalette2) +
+    theme_classic() +
+ theme(legend.position = "none")
+
+fig.EI
+fig.EI.wo
+
+#ggsave('fig.EI.noFRS.jpeg',fig.EI.wo , units = 'cm', width = 14, height = 10)
+
+```
+
+# Reproducibility
+```{r}
+Sys.time()
+git2r::repository()
+sessionInfo()
+```
+

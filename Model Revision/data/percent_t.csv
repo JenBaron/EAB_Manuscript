@@ -1,0 +1,73 @@
+"","Location","ID","Category","T"
+"1","Code Farm",1,"EAB Gap",50
+"2","Code Farm",1,"Non-Gap",70
+"3","Code Farm",1,"Other Gap",60
+"4","Code Farm",2,"EAB Gap",90
+"5","Code Farm",2,"Non-Gap",50
+"6","Code Farm",2,"Other Gap",40
+"7","Code Farm",3,"EAB Gap",80
+"8","Code Farm",3,"Non-Gap",110
+"9","Code Farm",3,"Other Gap",120
+"10","Code Farm",4,"EAB Gap",30
+"11","Code Farm",4,"Non-Gap",100
+"12","Code Farm",4,"Other Gap",20
+"13","Field Research Station",1,"EAB Gap",110
+"14","Field Research Station",1,"Non-Gap",110
+"15","Field Research Station",1,"Other Gap",80
+"16","Field Research Station",2,"EAB Gap",120
+"17","Field Research Station",2,"Non-Gap",40
+"18","Field Research Station",2,"Other Gap",20
+"19","Field Research Station",3,"EAB Gap",50
+"20","Field Research Station",3,"Non-Gap",30
+"21","Field Research Station",3,"Other Gap",30
+"22","Field Research Station",4,"EAB Gap",90
+"23","Field Research Station",4,"Non-Gap",30
+"24","Field Research Station",4,"Other Gap",40
+"25","Five Points Forest",1,"EAB Gap",70
+"26","Five Points Forest",1,"Non-Gap",50
+"27","Five Points Forest",1,"Other Gap",60
+"28","Five Points Forest",2,"EAB Gap",90
+"29","Five Points Forest",2,"Non-Gap",60
+"30","Five Points Forest",2,"Other Gap",60
+"31","Five Points Forest",3,"EAB Gap",110
+"32","Five Points Forest",3,"Non-Gap",100
+"33","Five Points Forest",3,"Other Gap",30
+"34","Five Points Forest",4,"EAB Gap",60
+"35","Five Points Forest",4,"Non-Gap",30
+"36","Five Points Forest",4,"Other Gap",90
+"37","Meadowlily Woods",1,"EAB Gap",90
+"38","Meadowlily Woods",1,"Non-Gap",50
+"39","Meadowlily Woods",1,"Other Gap",110
+"40","Meadowlily Woods",2,"EAB Gap",40
+"41","Meadowlily Woods",2,"Non-Gap",40
+"42","Meadowlily Woods",2,"Other Gap",80
+"43","Meadowlily Woods",3,"EAB Gap",40
+"44","Meadowlily Woods",3,"Non-Gap",60
+"45","Meadowlily Woods",3,"Other Gap",100
+"46","Meadowlily Woods",4,"EAB Gap",80
+"47","Meadowlily Woods",4,"Non-Gap",120
+"48","Meadowlily Woods",4,"Other Gap",50
+"49","Medway Valley",1,"EAB Gap",110
+"50","Medway Valley",1,"Non-Gap",40
+"51","Medway Valley",1,"Other Gap",50
+"52","Medway Valley",2,"EAB Gap",120
+"53","Medway Valley",2,"Non-Gap",70
+"54","Medway Valley",2,"Other Gap",70
+"55","Medway Valley",3,"EAB Gap",50
+"56","Medway Valley",3,"Non-Gap",100
+"57","Medway Valley",3,"Other Gap",60
+"58","Medway Valley",4,"EAB Gap",120
+"59","Medway Valley",4,"Non-Gap",70
+"60","Medway Valley",4,"Other Gap",100
+"61","Westminster Ponds",1,"EAB Gap",100
+"62","Westminster Ponds",1,"Non-Gap",110
+"63","Westminster Ponds",1,"Other Gap",110
+"64","Westminster Ponds",2,"EAB Gap",140
+"65","Westminster Ponds",2,"Non-Gap",60
+"66","Westminster Ponds",2,"Other Gap",150
+"67","Westminster Ponds",3,"EAB Gap",100
+"68","Westminster Ponds",3,"Non-Gap",150
+"69","Westminster Ponds",3,"Other Gap",120
+"70","Westminster Ponds",4,"EAB Gap",120
+"71","Westminster Ponds",4,"Non-Gap",100
+"72","Westminster Ponds",4,"Other Gap",80
