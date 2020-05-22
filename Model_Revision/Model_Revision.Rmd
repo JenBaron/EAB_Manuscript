@@ -7,7 +7,6 @@ output:
     toc: true
     number_sections: true
     toc_float: true
-    keep_md: true
 ---
 
 This is the same code as the original analysis, but I'm now modelling the raw amount of buckthorn (instead of the relative abundance)
@@ -658,6 +657,27 @@ fig.EI
 
 #ggsave('fig.EI.jpeg',fig.EI , units = 'cm', width = 14, height = 10)
 
+```
+
+
+```{r}
+
+fig.EI2 <- ggplot(pred, aes(x = PC1, y = mean)) +
+  geom_ribbon(aes(x = PC1, ymin = lwr, ymax = upr, fill = Category), alpha = 0.15) +
+  geom_point(data = shrubs.EI, aes(x = PC1, y = Buckthorn, col = Category), alpha = 0.6) + 
+  geom_line(aes(col = Category), size = 1, alpha = 0.8) +
+  labs(x = "Ecological Integrity (index)",
+       y = "European buckthorn (% cover)",
+       col = "Category") +
+  scale_y_continuous(limits = c(0, 100)) +
+  scale_colour_manual(values = mypalette2,  name = "Gap Category", labels = c("Emerald Ash Borer Gap", "Other Canopy Gap", "Non-Gap")) +
+  scale_fill_manual(values = mypalette2,  name = "Gap Category", labels = c("Emerald Ash Borer Gap", "Other Canopy Gap", "Non-Gap")) +
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+fig.EI2
+
+#ggsave('figures/fig.EI2.jpeg',fig.EI2 , units = 'cm', width = 15, height = 12)
 ```
 
 Check those high % buckthorn points - where are they coming from?
