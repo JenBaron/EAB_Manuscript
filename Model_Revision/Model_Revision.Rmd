@@ -26,6 +26,7 @@ library(ggrepel)
 library(gridExtra)
 library(DHARMa)
 library(emmeans)
+library(predictmeans)
 library(dplyr)
 ```
 
@@ -50,8 +51,8 @@ shade.tol <- read.csv("data/shade_tol.csv") %>% select(-X, -Gap, -tot.BA)
 names(shade.tol)[4] <- "Shade Tolerance"
 str(shade.tol)
 
-tree <- read.csv("data/percent_t.csv") %>% select(-X) #wondering if this should be absolute or relative...
-names(tree)[4] <- "Percent Tree" #absolute right now (not relative to shrub cover)
+tree <- read.csv("data/percent_t.csv") %>% select(-X) 
+names(tree)[4] <- "Percent Tree"
 str(tree)
 
 mgmt <- read.csv("data/management.csv")
@@ -87,6 +88,8 @@ shade.tol.site <- EI5 %>% #summarize shade tolerance by site
   summarize(Shade.Tolerance.Site = mean(Shade.Tolerance)) 
 
 str(shade.tol.site)
+
+str(EI5)
 
 EI6 <- full_join(EI5, shade.tol.site, by = c("Location")) %>% select(-Shade.Tolerance)
 
@@ -387,9 +390,12 @@ par(mfrow = c(1,3))
 ```{r}
 names(gap.area) <- sub(" ", ".", names(gap.area)) #Replace spaces with .
 gap.test <- lme(Gap.Area~Category,random=~1|Location,data=gap.area)
+
 anova(gap.test)
 summary(gap.test)
+
 gap.area %>% group_by(Category) %>% summarize(gap.area = mean(Gap.Area))
+
 intervals(gap.test,  which = "fixed")
 ```
 
@@ -400,7 +406,57 @@ ggplot(gap.area, aes(x = Category, y = Gap.Area)) +
   theme_classic()
 ```
 
+### Test Assumptions
+
+
+Here are the residuals and fitted values:
+
+```{r}
+gap.area$mfit <- fitted(gap.test, level = 0) 
+
+gap.area$mresid <- residuals(gap.test, type = "normalized")
+```
+
+
+#### Linearity and Equal Variance
+
+```{r}
+ggplot(gap.area, aes(x = mfit, y = mresid)) + 
+  geom_point() +
+  geom_smooth()
+```
+
+#### Normality
+
+
+```{r}
+ggplot(gap.area, aes(sample = mresid)) + geom_qq() + geom_qq_line()
+```
+
+
+#### Cook's Distances
+
+```{r}
+gap.area$cookd<-CookD(gap.test, plot=FALSE)
+
+ggplot(gap.area, aes(seq_along(cookd), cookd))+
+  geom_bar(stat="identity", position="identity")+ 
+  xlab("Obs. Number")+
+  ylab("Cook's distance")+
+  theme_classic()
+```
+
+
+
 # Zero-Inflated Model 
+
+Terms were considered important and remained in the model if removal caused an increase in AIC of 2 or more (ΔAIC ≥ 2). 
+
+All AIC calculations below are based on: 
+
+$$ ΔAIC  = AIC_{Remove} - AIC_{Include}$$ 
+
+In some cases, removing the term decreases AIC (ΔAIC < 0)
 
 
 ```{r}
