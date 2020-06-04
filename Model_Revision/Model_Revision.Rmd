@@ -377,6 +377,18 @@ gap.area.summary$Location <- revalue(gap.area.summary$Location, c("Meadowlily Wo
 #write.csv(gap.area.summary, file = "gaps_summary.csv")
 ```
 
+### Summarize Zeros
+
+```{r}
+shrubs.EI %>% filter(percentB == 0) %>%
+  group_by(Category) %>% 
+  summarise(count = n())
+
+shrubs.EI %>% filter(percentB > 0) %>%
+  group_by(Category) %>% 
+  summarise(count = n())
+```
+
 
 ## Apply a Poission Generalized MM
 
@@ -525,7 +537,7 @@ AIC(shrubs.hurdle, shrubs.hurdle1)
 Drop management, reduces AIC
 
 ```{r}
-426.9657-428.0959
+(426.9657-428.0959) %>% round(2)
 ```
 
 
@@ -543,7 +555,7 @@ AIC(shrubs.hurdle1a, shrubs.hurdle1b)
 ```
 
 ```{r}
-424.8045-426.9657
+(424.8045-426.9657) %>% round(2)
 ```
 
 
@@ -560,7 +572,7 @@ AIC(shrubs.hurdle1a, shrubs.hurdle2c)
 ```
 
 ```{r}
-423.5389-424.8045
+(423.5389-424.8045)  %>% round(2)
 ```
 
 
@@ -577,7 +589,7 @@ AIC(shrubs.hurdle2c, shrubs.hurdle3a)
 ```
 
 ```{r}
-422.0300-423.5389
+(422.0300-423.5389)  %>% round(2)
 ```
 
 
@@ -594,7 +606,7 @@ AIC(shrubs.hurdle3a, shrubs.hurdle4)
 
 
 ```{r}
-426.9292-422.0300
+(426.9292-422.0300) %>% round(2)
 ```
 
 
@@ -619,7 +631,7 @@ AIC(shrubs.hurdle5c, shrubs.hurdle5d)
 ```
 
 ```{r}
-422.0300-421.6317
+(422.0300-421.6317)  %>% round(2)
 ```
 
 Drop management
@@ -636,7 +648,7 @@ AIC(shrubs.hurdle5d, shrubs.hurdle5)
 ```
 
 ```{r}
-423.2072-422.0300
+(423.2072-422.0300) %>% round(2)
 ```
 
 Drop gap size
@@ -653,7 +665,7 @@ AIC(shrubs.hurdle5, shrubs.hurdle6)
 ```
 
 ```{r}
-427.9651-423.2072
+(427.9651-423.2072) %>% round(2)
 ```
 
 
@@ -962,9 +974,23 @@ exp(fixef(shrubs.hurdle5)$cond) # Intercept expected cover when present, others 
 exp(confint(shrubs.hurdle5))
 ```
 
+### Buckthorn Occurance
+
+The zero-altered model predicts the odds of observing a zero. We have to convert these values from the probability of a zero to to the probability of a non-zero (subtracting from 1).
+
+The odds of observing a zero in an EAB gap are 0.41 (0.11, 1.5)
+
+```{r}
+((1-0.4113465)*100) %>% round(1) #estimate
+((1-0.1102974)*100) %>% round(1) #upper
+(abs(1-1.5340883)*100) %>% round(1) #lower
+```
+
+
 ### Buckthorn Abundance: Category
 
 **EAB Gaps**
+
 33.7 (22.3, 50.9)
 
 **Other Gaps**
