@@ -504,172 +504,123 @@ shrubs.hurdle <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Locat
 
 ## Model Selection
 
-### Step 1: Compare to Negative Binomial
+
+Buckthorn occurrence
+- m1a: Category*PC1
+- m1b: Management
+- m1c: Gap.Area.Site
 
 ```{r}
-AIC(shrubs.0infl, shrubs.hurdle, shrubs.B2) # Better than neg binomial 
-```
-
-Both the zero-inflated and zero-altered model are better than the original negative binomial model
-
-We're going to use zero-altered because it's safe to assume that if buckthorn was present, it was recorded
-
-### Step 2: Fixed Effects
-
-```{r}
-shrubs.hurdle <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
-                        ziformula = ~ Category * PC1 + Gap.Area.Site + Management + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-```
+full.model <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
 
 
-### Step 3: Simplify Zero-Inflation
+m1a <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category + PC1  + Management + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m1b <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category * PC1  +  Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m1c <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category * PC1  + Management + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
 
-#### Management
-
-```{r}
-shrubs.hurdle1 <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site +   (1 | Location), 
-                        ziformula = ~  Category * PC1 + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-AIC(shrubs.hurdle, shrubs.hurdle1)
-```
-
-Drop management, reduces AIC
-
-```{r}
-(426.9657-428.0959) %>% round(2)
+drop1(full.model)
+AIC(m1a, m1b, m1c)
 ```
 
 
-#### Interaction
-
-```{r}
-shrubs.hurdle1a <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
-                        ziformula = ~  Category + PC1 + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-shrubs.hurdle1b <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
-                        ziformula = ~ Category * PC1 + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
 
 
-AIC(shrubs.hurdle1a, shrubs.hurdle1b)
-```
+Buckthorn occurrence:
 
-```{r}
-(424.8045-426.9657) %>% round(2)
-```
-
-
-1a - drop interaction, reduced AIC
-
-#### Gap Size
-
-```{r}
-
-shrubs.hurdle2c <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
-                        ziformula = ~  Category + PC1 + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-AIC(shrubs.hurdle1a, shrubs.hurdle2c)
-```
-
-```{r}
-(423.5389-424.8045)  %>% round(2)
-```
-
-
-2c - drop gap area, reducec AIC
-
-#### PC1
-
-```{r}
-shrubs.hurdle3a <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
-                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-
-AIC(shrubs.hurdle2c, shrubs.hurdle3a)
-```
-
-```{r}
-(422.0300-423.5389)  %>% round(2)
-```
-
-
-3b - drop PC1, reduced AIC
-
-#### Category
-
-```{r}
-shrubs.hurdle4 <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
-                        ziformula = ~ 1 +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-AIC(shrubs.hurdle3a, shrubs.hurdle4)
-```
+- m2a: Gap category
+- m2b: PC1
+- m2c: Management
+- m2d: Gap.Area.site
 
 
 ```{r}
-(426.9292-422.0300) %>% round(2)
+m2a <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~  PC1  + Management + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m2b <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category +  Management + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m2c <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category + PC1   + Gap.Area.Site + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m2d <- glmmTMB(Buckthorn ~ Category * PC1  + Management + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category + PC1  + Management + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+drop1(m1a)
+
+AIC(m2a, m2b, m2c, m2d)
 ```
 
 
-Keep Category, dropping increases AIC > 2
+Buckthorn occurrence:
 
-
-### Step 4: Simplify Negative-Binomial
+- m3a: Gap category
+- m3b: PC1
+- m3c: Management
 
 
 ```{r}
-shrubs.hurdle5c <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + Management + (1 | Location), 
-                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-```
 
-#### Management
-
-```{r}
-shrubs.hurdle5d <- glmmTMB(Buckthorn ~ Category * PC1 + Gap.Area.Site + (1 | Location), 
-                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-AIC(shrubs.hurdle5c, shrubs.hurdle5d)
-```
-
-```{r}
-(422.0300-421.6317)  %>% round(2)
-```
-
-Drop management
-
-
-#### Gap Size
-
-
-```{r}
-shrubs.hurdle5 <- glmmTMB(Buckthorn ~ Category * PC1 + (1 | Location), 
-                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-AIC(shrubs.hurdle5d, shrubs.hurdle5)
+m3a <- glmmTMB(Buckthorn ~ Category * PC1  + Management +  Gap.Area.Site + (1 | Location), 
+                    ziformula = ~  PC1  + Management  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m3b <- glmmTMB(Buckthorn ~ Category * PC1  + Management +  Gap.Area.Site + (1 | Location), 
+                    ziformula = ~  Category  + Management  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m3c <- glmmTMB(Buckthorn ~ Category * PC1  + Management +  Gap.Area.Site + (1 | Location), 
+                    ziformula = ~  Category + PC1 + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+drop1(m2d)
+AIC(m3a, m3b, m3c)
 ```
 
 ```{r}
-(423.2072-422.0300) %>% round(2)
-```
 
-Drop gap size
-
-
-
-#### Interaction
-
-```{r}
-shrubs.hurdle6 <- glmmTMB(Buckthorn ~ Category + PC1 + (1 | Location), 
-                        ziformula = ~ Category +  (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
-
-AIC(shrubs.hurdle5, shrubs.hurdle6)
+m3d <- glmmTMB(Buckthorn ~ Category * PC1   + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category + PC1  + Management + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m4a <- glmmTMB(Buckthorn ~ Category * PC1  +  Gap.Area.Site + (1 | Location), 
+                    ziformula = ~  PC1  + Management  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m4b <- glmmTMB(Buckthorn ~ Category * PC1  +  Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category   + Management  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m4c <- glmmTMB(Buckthorn ~ Category * PC1  +  Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category + PC1   + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+drop1(m3d)
+AIC(m4a, m4b, m4c)
 ```
 
 ```{r}
-(427.9651-423.2072) %>% round(2)
+m4d <- glmmTMB(Buckthorn ~ Category * PC1   + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category + PC1 + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m5a <- glmmTMB(Buckthorn ~ Category * PC1   + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~  PC1 + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+m5b <- glmmTMB(Buckthorn ~ Category * PC1   + Gap.Area.Site + (1 | Location), 
+                    ziformula = ~ Category  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+drop1(m4d)
+AIC(m5a, m5b)
 ```
 
+```{r}
+m6a <- glmmTMB(Buckthorn ~ Category * PC1   +  (1 | Location), 
+                    ziformula = ~ 1  + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
 
-Keep interaction
+drop1(m5b)
+AIC(m6a)
+```
+
+```{r}
+m6b <- glmmTMB(Buckthorn ~ Category * PC1  + (1 | Location), 
+                    ziformula = ~  Category + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+
+m7a <- glmmTMB(Buckthorn ~ Category * PC1  + (1 | Location), 
+                    ziformula = ~  1   + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+drop1(m6b)
+AIC(m7a)
+```
+
+```{r}
+shrubs.hurdle5 <- glmmTMB(Buckthorn ~ Category * PC1  + (1 | Location), 
+                    ziformula = ~  Category + (1 | Location), family = "truncated_nbinom2", data = shrubs.EI)
+```
+
 
 
 ## Plot Model Predictions
@@ -737,7 +688,7 @@ fig.EI
 
 ```
 
-Figure with legend
+Graphical abstract
 
 ```{r}
 fig.EI2 <- ggplot(pred, aes(x = PC1, y = mean)) +
@@ -755,7 +706,8 @@ fig.EI2 <- ggplot(pred, aes(x = PC1, y = mean)) +
 
 fig.EI2
 
-#ggsave('figures/fig.EI2.jpeg',fig.EI2 , units = 'cm', width = 15, height = 12)
+#ggsave('figures/fig.EI2.jpeg',fig.EI2 , width = 15, height = 12)
+
 ```
 
 
@@ -1030,7 +982,6 @@ The odds of observing a zero in an EAB gap are 0.41 (0.11, 1.5)
 (0.7128030*0.6601346) %>% round(2)#lower
 (0.7128030*2.2014151) %>% round(2)#upper
 ```
-
 
 
 
