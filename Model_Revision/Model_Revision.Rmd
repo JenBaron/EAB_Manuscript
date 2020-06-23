@@ -701,12 +701,13 @@ fig.EI2 <- ggplot(pred, aes(x = PC1, y = mean)) +
   scale_y_continuous(limits = c(0, 100)) +
   scale_colour_manual(values = mypalette2,  name = "Gap Category", labels = c("Emerald Ash Borer Gap", "Other Canopy Gap", "Closed Canopy")) +
   scale_fill_manual(values = mypalette2,  name = "Gap Category", labels = c("Emerald Ash Borer Gap", "Other Canopy Gap", "Closed Canopy")) +
+  ggtitle("Emerald-ash borer interacts with ecological integrity to facilitate \nEuropean buckthorn through the creation of canopy gaps") +
   theme_classic() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", plot.title = element_text(face = "bold"), plot.margin=unit(c(1,0.5,0,.5),"cm"))
 
 fig.EI2
 
-#ggsave('figures/fig.EI2.jpeg',fig.EI2 , width = 15, height = 12)
+#ggsave('figures/fig.EI2.jpeg',fig.EI2 , width = 22, height = 14, units = "cm")
 
 ```
 
