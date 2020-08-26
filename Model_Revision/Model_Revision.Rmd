@@ -204,7 +204,7 @@ biplot1 <- ggplot(F.1, aes(x = PC1, y =PC2)) +
 biplot1
 
 
-ggsave('figures/fig.biplotBrBu.jpeg',biplot1, units = 'cm', width = 14, height =12, dpi=500)
+#ggsave('figures/fig.biplotBrBu.jpeg',biplot1, units = 'cm', width = 14, height =12, dpi="retina")
 ```
 
 # Preliminary Modelling
@@ -684,7 +684,7 @@ fig.EI <- ggplot(pred, aes(x = PC1, y = mean)) +
 
 fig.EI
 
-ggsave('figures/fig.EI.jpeg',fig.EI , units = 'cm', width = 14, height = 10, dpi=500)
+ggsave('figures/fig.EI.jpeg',fig.EI , units = 'cm', width = 14, height = 10, dpi="retina")
 
 ```
 
@@ -707,7 +707,7 @@ fig.EI2 <- ggplot(pred, aes(x = PC1, y = mean)) +
 
 fig.EI2
 
-#ggsave('figures/fig.EI2.jpeg',fig.EI2 , width = 22, height = 14, units = "cm")
+ggsave('figures/fig.EI2.jpeg',fig.EI2 , width = 22, height = 14, units = "cm")
 
 ```
 
